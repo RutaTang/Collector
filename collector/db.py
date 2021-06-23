@@ -1,3 +1,6 @@
+import time
+from typing import Callable
+
 import click
 
 from sqlalchemy import create_engine
@@ -69,20 +72,58 @@ def create_folder(name: str, description: str, parent_folder_id: int):
 
 @db.command()
 def list_folders_tree():
+    def print_folder_name(**kwargs):
+        session = kwargs.pop('session')
+        folder_id = kwargs.pop("folder_id")
+        level = kwargs.pop("level")
+        folder_name = session.execute(select(Folder).where(Folder.id == folder_id)).first()[0].name
+        print(" " * 5 * level, f'({level + 1})', folder_name)
+
     folders_id_tree = folders_tree_in_id()
-    list_folders_tree_helper(folders_id_tree['0'], level=0)
+    list_helper(folders_id_tree['0'], 0, print_folder_name)
 
 
-def list_folders_tree_helper(folder_ids: [], level):
+@db.command()
+@click.option("--title")
+@click.option("--description", default="")
+@click.option("--url")
+@click.option("--folder_id", default=1)
+def create_bookmark(title: str, description: str, url: str, folder_id: int):
+    with Session(engine) as session:
+        bm = Bookmark()
+        bm.title = title
+        bm.description = description
+        bm.url = url
+        bm.folder_id = folder_id
+        session.add(bm)
+        session.commit()
+
+
+@db.command()
+def list_folders_bookmarks_tree():
+    def f(**kwargs):
+        session = kwargs.pop("session")
+        folder_id = kwargs.pop("folder_id")
+        level = kwargs.pop("level")
+        folder_name = session.execute(select(Folder).where(Folder.id == folder_id)).first()[0].name
+        print(" " * 5 * level, f'({level + 1})', folder_name)
+        bookmarks = session.execute(select(Bookmark).where(Bookmark.folder_id == folder_id)).all()
+        for bookmark_tuple in bookmarks:
+            bookmark = bookmark_tuple[0]
+            print(" ->" + " "* 5 * level, f'title("{bookmark.title}"), description("{bookmark.description}"), url("{bookmark.url}")')
+
+    folders_id_tree = folders_tree_in_id()
+    list_helper(folders_id_tree['0'], 0, f)
+
+
+def list_helper(folder_ids: [], level, f: Callable):
     if len(folder_ids) == 0:
         return
     for folder_id_tree in folder_ids:
         for k, v in folder_id_tree.items():
             with Session(engine) as session:
-                # print(" " * 2 * level, )
-                folder_name = session.execute(select(Folder).where(Folder.id == k)).first()[0].name
-                print(" " * 5 * level, f'({level+1})', folder_name)
-        list_folders_tree_helper(v, level=level + 1)
+                f(session=session, folder_id=k, level=level)
+            list_helper(v, level + 1, f)
 
 
 def folders_tree_in_id(parent_folder_id: int = None):
