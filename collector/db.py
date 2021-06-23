@@ -16,8 +16,12 @@ engine = create_engine("sqlite+pysqlite:///bookmarks.db", echo=False, future=Tru
 
 class Bookmark(Base):
     __tablename__ = 'bookmark'
+    __table_args__ = (
+        UniqueConstraint('title', 'folder_id', name='_title_folder_uc'),
+    )
+
     id = Column(Integer, primary_key=True)
-    title = Column(String, nullable=False, unique=True)
+    title = Column(String, nullable=False)
     description = Column(String)
     url = Column(String, nullable=False)
     folder_id = Column(Integer, ForeignKey('folder.id', name="folder_id"), nullable=False)
@@ -110,7 +114,8 @@ def list_folders_bookmarks_tree():
         bookmarks = session.execute(select(Bookmark).where(Bookmark.folder_id == folder_id)).all()
         for bookmark_tuple in bookmarks:
             bookmark = bookmark_tuple[0]
-            print(" ->" + " "* 5 * level, f'title("{bookmark.title}"), description("{bookmark.description}"), url("{bookmark.url}")')
+            print(" ->" + " " * 5 * level,
+                  f'title("{bookmark.title}"), description("{bookmark.description}"), url("{bookmark.url}")')
 
     folders_id_tree = folders_tree_in_id()
     list_helper(folders_id_tree['0'], 0, f)
