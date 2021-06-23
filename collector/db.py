@@ -24,7 +24,7 @@ class Bookmark(Base):
     title = Column(String, nullable=False)
     description = Column(String)
     url = Column(String, nullable=False)
-    folder_id = Column(Integer, ForeignKey('folder.id', name="folder_id"), nullable=False)
+    folder_id = Column(Integer, ForeignKey('folder.id', name="folder_id"), nullable=False, default= 1)
 
     folder = relationship('Folder', back_populates="bookmarks")
 
@@ -32,13 +32,13 @@ class Bookmark(Base):
 class Folder(Base):
     __tablename__ = 'folder'
     __table_args__ = (
-        UniqueConstraint('name', 'parent_folder_id', name='_name_parent_uc'),
+        UniqueConstraint('name', 'parent_folder_id', name='_name_description_parent_uc'),
     )
 
     id = Column(Integer, primary_key=True)
     name = Column(String, nullable=False)
     description = Column(String)
-    parent_folder_id = Column(Integer, ForeignKey('folder.id', name="parent_folder_id"), nullable=True)
+    parent_folder_id = Column(Integer, ForeignKey('folder.id', name="parent_folder_id"), nullable=False, default=0)
 
     bookmarks = relationship('Bookmark', back_populates="folder")
     parent_folder = relationship('Folder', remote_side=[id], backref='children_folders')
@@ -47,6 +47,12 @@ class Folder(Base):
 @click.group()
 def db():
     pass
+
+
+@db.command()
+def init_db():
+    Base.metadata.create_all(engine)
+    create_default_folder()
 
 
 @db.command()
@@ -131,7 +137,7 @@ def list_helper(folder_ids: [], level, f: Callable):
             list_helper(v, level + 1, f)
 
 
-def folders_tree_in_id(parent_folder_id: int = None):
+def folders_tree_in_id(parent_folder_id: int = 0):
     """
     :param parent_folder_id:
     :return:
@@ -141,13 +147,10 @@ def folders_tree_in_id(parent_folder_id: int = None):
         folders = session.execute(stmt).all()
         if len(folders) == 0:
             return {f'{parent_folder_id}': []}
-        if parent_folder_id is None:
-            parent_folder_id = 0
         return {f'{parent_folder_id}': [folders_tree_in_id(folder_tuple[0].id) for folder_tuple in folders]}
 
 
 if __name__ == "__main__":
-    # Base.metadata.drop_all(engine)
-    # Base.metadata.create_all(engine)
-    # create_default_folder()
-    db()
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    create_default_folder()
